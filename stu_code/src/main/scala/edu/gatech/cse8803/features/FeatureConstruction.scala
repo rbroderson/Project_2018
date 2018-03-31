@@ -146,7 +146,9 @@ object FeatureConstruction {
 
       val patients = patientTargetAndFeatures.map(x=>(x._1)).distinct()
 
+/*
 
+ */
 
     // assign a unique integer id to feature name
     val featureMap = patientTargetAndFeatures. // RDD[(target, Map[feature-name, feature-value])]
