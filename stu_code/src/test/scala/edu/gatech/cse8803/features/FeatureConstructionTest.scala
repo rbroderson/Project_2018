@@ -12,6 +12,8 @@ import edu.gatech.cse8803.model.LabEvent
 import edu.gatech.cse8803.model.Prescription
 import edu.gatech.cse8803.model.Procedures
 import edu.gatech.cse8803.model.Patient
+import org.apache.spark.sql.SQLContext
+
 
 import org.apache.spark.mllib.linalg.Vectors
 
@@ -22,12 +24,25 @@ class FeatureConstructionTest extends FlatSpec with BeforeAndAfter with Matchers
   before {
     val config = new SparkConf().setAppName("Test FeatureConstruction").setMaster("local")
     sparkContext = new SparkContext(config)
+
+
   }
 
   after {
     sparkContext.stop()
   }
+/*
+  "SQL TES" should "work correctly" in {
 
+    java.lang.RuntimeException: [1.1] failure: ``insert'' expected but identifier UPDATE found
+    val sqlContext = new SQLContext(sparkContext)
+    sqlContext.sql("UPDATE PRESCRIPTIONS SET DOSE_VAL_RX = 'NA'")
+    val results = sqlContext.sql("SELECT DOSE_VAL_RX FROM PRESCRIPTIONS LIMIT 10;")
+    results.cache()
+    println(results)
+
+  }
+  */
   "constructLabEventFeatureTuple" should "aggregate one event" in {
     val labs = sparkContext.parallelize(Seq(
         new LabEvent("patient1", "A",1.0)));
@@ -75,7 +90,7 @@ class FeatureConstructionTest extends FlatSpec with BeforeAndAfter with Matchers
 
   "constructPrescriptionFeatureTuple" should "aggregate one event" in {
     val presrips = sparkContext.parallelize(Seq(
-      new Prescription("patient1", "A",1.0)));
+      new Prescription("patient1", "A","A",1.0)));
     val actual = FeatureConstruction.constructPrescriptionFeatureTuple(presrips).collect()
     val expected = Array(
       (("patient1", "A"), 1.0))
@@ -84,8 +99,8 @@ class FeatureConstructionTest extends FlatSpec with BeforeAndAfter with Matchers
 
   "constructPrescriptionFeatureTuple" should "aggregate two different events" in {
     val presrips = sparkContext.parallelize(Seq(
-      new Prescription("patient1", "A", 1.0),
-      new Prescription("patient1", "B", 1.0)));
+      new Prescription("patient1", "A", "1.0",  1.0),
+      new Prescription("patient1", "B", "1.0", 1.0)));
     val actual =  FeatureConstruction.constructPrescriptionFeatureTuple(presrips).collectAsMap()
     val expected = Map(
       (("patient1", "A"), 1.0),
@@ -95,8 +110,8 @@ class FeatureConstructionTest extends FlatSpec with BeforeAndAfter with Matchers
 
   "constructPrescriptionFeatureTuple" should "aggregate two same events" in {
     val presrips = sparkContext.parallelize(Seq(
-      new Prescription("patient1", "A", 1.0),
-      new Prescription("patient1", "A", 1.0)));
+      new Prescription("patient1", "A", "1.0",1.0),
+      new Prescription("patient1", "A", "1.0", 1.0)));
     val actual = FeatureConstruction.constructPrescriptionFeatureTuple(presrips).collect()
     val expected = Array(
       (("patient1", "A"), 2.0))
@@ -105,9 +120,9 @@ class FeatureConstructionTest extends FlatSpec with BeforeAndAfter with Matchers
 
   "constructPrescriptionFeatureTuple" should "aggregate three events with duplication" in {
     val presrips = sparkContext.parallelize(Seq(
-      new Prescription("patient1",  "code1", 1.0),
-      new Prescription("patient1", "code1", 1.0),
-      new Prescription("patient1",  "code2", 1.0)));
+      new Prescription("patient1",  "code1", "1.0", 1.0),
+      new Prescription("patient1", "code1", "1.0", 1.0),
+      new Prescription("patient1",  "code2", "1.0", 1.0)));
     val actual = FeatureConstruction.constructPrescriptionFeatureTuple(presrips).collectAsMap()
     val expected = Map(
       (("patient1", "code1"), 2.0),

@@ -1,5 +1,5 @@
 /**
- * @author Hang Su
+ * @author
  */
 package edu.gatech.cse8803.features
 
@@ -8,6 +8,7 @@ import org.apache.spark.SparkContext
 import org.apache.spark.mllib.linalg.{Vector, Vectors}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.SparkContext._
+
 
 
 object FeatureConstruction {
@@ -42,6 +43,8 @@ object FeatureConstruction {
      * TODO implement your own code here and remove existing
      * placeholder code
      */
+
+    //prescription.map((x=>x.value = ))
     val grpPatientsTotal = prescription.map(x=>((x.patientID, x.drug),x.value) )
 
     val grpPatientSum = grpPatientsTotal.groupByKey().map((x=> (x._1, (x._2.sum))))

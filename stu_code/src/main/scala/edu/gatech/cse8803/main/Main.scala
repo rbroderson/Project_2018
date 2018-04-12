@@ -11,12 +11,17 @@ import edu.gatech.cse8803.model.{LabEvent, Prescription, Procedures, Patient}
 import org.apache.spark.SparkContext._
 import org.apache.spark.mllib.clustering.{GaussianMixture, KMeans, StreamingKMeans}
 import org.apache.spark.mllib.linalg.{DenseMatrix, Matrices, Vectors, Vector}
-import org.apache.spark.mllib.feature.StandardScaler
+import org.apache.spark.ml.feature.{HashingTF, Tokenizer}
+
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.SQLContext
+import org.apache.spark.sql.types.DoubleType
 import org.apache.spark.{SparkConf, SparkContext}
 
 import scala.io.Source
+import org.apache.spark.mllib.regression.LabeledPoint
+import org.apache.spark.mllib.util.MLUtils
+import org.apache.spark.mllib.feature.StandardScaler
 
 
 object Main {
@@ -38,14 +43,18 @@ object Main {
 
     /** feature construction with all features */
     val featureTuples = sc.union(FeatureConstruction.constructLabEventFeatureTuple(labEvent),
-      FeatureConstruction.constructProceduresTuple(procedure)
-       //FeatureConstruction.constructPrescriptionFeatureTuple(prescription),FeatureConstruction.constructPatientTuple(patient)
+      FeatureConstruction.constructProceduresTuple(procedure), FeatureConstruction.constructPrescriptionFeatureTuple(prescription),FeatureConstruction.constructPatientTuple(patient)
     )
 
     val rawFeatures = FeatureConstruction.construct(sc, featureTuples)
 
+    val scaler = new StandardScaler(withMean = true, withStd = true).fit(rawFeatures.map(_._2))
+    val features = rawFeatures.map({ case (patientID, featureVector) => (patientID, scaler.transform(Vectors.dense(featureVector.toArray)))})
 
+    val deadPatient = patient.filter(x => x.expireFlag == 1).keyBy(x => x.patientID).join(features.keyBy(f => f._1)).map(x => LabeledPoint(1.0, x._2._2._2))
+    val alivePatient = patient.filter(x => x.expireFlag == 0).keyBy(x => x.patientID).join(features.keyBy(f => f._1)).map(x => LabeledPoint(0.0, x._2._2._2))
 
+    MLUtils.saveAsLibSVMFile(alivePatient.union(deadPatient),"data/svm")
   }
 
   def loadRddRawData(sqlContext: SQLContext): (RDD[LabEvent], RDD[Prescription], RDD[Procedures], RDD[Patient]) = {
@@ -65,32 +74,41 @@ object Main {
 
 
 
+    val labEventsDF =  sqlContext.sql("SELECT P.SUBJECT_ID, L.ITEMID, 0 AS VALUENUM FROM PATIENTS P INNER JOIN ADMISSIONS A ON P.SUBJECT_ID = A.SUBJECT_ID LEFT JOIN DIAGNOSES_ICD D ON D.HADM_ID = A.HADM_ID INNER JOIN LABEVENTS L ON L.HADM_ID = A.HADM_ID WHERE D.ICD9_CODE IN ('78552','99591','99592') AND VALUENUM IS NOT NULL LIMIT 100 ".stripMargin).map(r => LabEvent(r(0).toString, r(1).toString, r(2).toString.toDouble))
+    labEventsDF.cache()
+    println(labEventsDF.count())
 
 
+    // TRANSFORM: VALUENUM to new field Feature mapped to VALUE based on classification
     val labEvents: RDD[LabEvent] =  sqlContext.sql("SELECT P.SUBJECT_ID, L.ITEMID, 0 AS VALUENUM FROM PATIENTS P INNER JOIN ADMISSIONS A ON P.SUBJECT_ID = A.SUBJECT_ID LEFT JOIN DIAGNOSES_ICD D ON D.HADM_ID = A.HADM_ID INNER JOIN LABEVENTS L ON L.HADM_ID = A.HADM_ID WHERE D.ICD9_CODE IN ('78552','99591','99592') AND VALUENUM IS NOT NULL LIMIT 100 ".stripMargin).map(r => LabEvent(r(0).toString, r(1).toString, r(2).toString.toDouble))
     //val labEvents: RDD[LabEvent] =  sqlContext.sql("SELECT SUBJECT_ID, ITEMID, 0.0 as value FROM LABEVENTS LE  LIMIT 100 ".stripMargin).map(r => LabEvent(r(0).toString, r(1).toString, r(2).toString.toDouble))
 
     labEvents.cache()
     println(labEvents.count())
 
-    val prescription: RDD[Prescription] =  sqlContext.sql("SELECT P.SUBJECT_ID, PR.DRUG, 0 AS DOSE_VAL_RX FROM PATIENTS P INNER JOIN ADMISSIONS A ON P.SUBJECT_ID = A.SUBJECT_ID LEFT JOIN DIAGNOSES_ICD D ON D.HADM_ID = A.HADM_ID INNER JOIN PRESCRIPTIONS PR ON PR.HADM_ID = A.HADM_ID WHERE D.ICD9_CODE IN ('78552','99591','99592') LIMIT 100 ".stripMargin).map(r => Prescription(r(0).toString, r(1).toString, r(2).toString.toDouble))
+   // TRANSFORM: DOSE_VAL_RX to new field Feature mapped to VALUE based on classification
+    val prescription: RDD[Prescription] =  sqlContext.sql("SELECT P.SUBJECT_ID, PR.DRUG, DOSE_VAL_RX, 0 as VALUE FROM PATIENTS P INNER JOIN ADMISSIONS A ON P.SUBJECT_ID = A.SUBJECT_ID LEFT JOIN DIAGNOSES_ICD D ON D.HADM_ID = A.HADM_ID INNER JOIN PRESCRIPTIONS PR ON PR.HADM_ID = A.HADM_ID WHERE D.ICD9_CODE IN ('78552','99591','99592') LIMIT 100 ".stripMargin).map(r => Prescription(r(0).toString, r(1).toString, r(2).toString, r(3).toString.toDouble))
     //val prescription: RDD[Prescription] =  sqlContext.sql("SELECT SUBJECT_ID, DRUG, 1.0 AS THEVALUE FROM PRESCRIPTIONS  LIMIT 100".stripMargin).map(r => Prescription(r(0).toString, r(1).toString, r(2).toString.toDouble))
-    prescription.cache()
     println(prescription.count())
+
+
 
     val procedure: RDD[Procedures] =  sqlContext.sql("SELECT P.SUBJECT_ID, PR.ICD9_CODE, 0 AS THECOUNT FROM PATIENTS P INNER JOIN ADMISSIONS A ON P.SUBJECT_ID = A.SUBJECT_ID LEFT JOIN DIAGNOSES_ICD D ON D.HADM_ID = A.HADM_ID INNER JOIN PROCEDURES_ICD PR ON PR.HADM_ID = A.HADM_ID WHERE D.ICD9_CODE IN ('78552','99591','99592') LIMIT 100 ".stripMargin).map(r => Procedures(r(0).toString, r(1).toString, r(2).toString.toInt))
     //val procedure: RDD[Procedures] =  sqlContext.sql("SELECT SUBJECT_ID, ICD9_CODE, 2 as THECOUNT FROM PROCEDURES_ICD  LIMIT 100".stripMargin).map(r => Procedures(r(0).toString, r(1).toString, r(2).toString.toInt))
     procedure.cache()
     println(procedure.count())
 
-    val patient: RDD[Patient] =  sqlContext.sql("SELECT SUBJECT_ID, 35 as age, GENDER, 1 as genderIndicator, DOB, DOD FROM PATIENTS LIMIT 100".stripMargin).map(r => Patient(r(0).toString, r(1).toString.toInt, r(2).toString.toLowerCase, r(3).toString.toInt, r(4).toString, r(5).toString))
+    //Add GENDERINDICATOR, DOB, DOB to Patients
+    val patient: RDD[Patient] =  sqlContext.sql("SELECT SUBJECT_ID, 35 as age, GENDER, 1 as genderIndicator, DOB, DOD, EXPIRE_FLAG FROM PATIENTS LIMIT 100".stripMargin).map(r => Patient(r(0).toString, r(1).toString.toInt, r(2).toString.toLowerCase, r(3).toString.toInt, r(4).toString, r(5).toString, r(6).toString.toInt))
     patient.cache()
     println(patient.count())
+
+
 
     val format = new java.text.SimpleDateFormat("yyyy-MM-dd")
 
     patient.map(x => if (x.gender=="M" ) x.genderIndicator == 1 else x.genderIndicator == 0)
-    //patient.map(x => x = )
+
     (labEvents, prescription, procedure, patient)
   }
 
