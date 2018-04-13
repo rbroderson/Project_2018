@@ -59,11 +59,11 @@ object Main {
     val scaler = new StandardScaler(withMean = true, withStd = true).fit(rawFeatures.map(_._2))
     val features = rawFeatures.map({ case (patientID, featureVector) => (patientID, scaler.transform(Vectors.dense(featureVector.toArray)))})
 
-    val deadPatient = patient.filter(x => x.expiredFlag == 1).keyBy(x => x.patientID).join(features.keyBy(x => x._1)).map(x => LabeledPoint(1.0, x._2._2._2))
-    val alivePatient = patient.filter(x => x.expiredFlag == 0).keyBy(x => x.patientID).join(features.keyBy(x => x._1)).map(x => LabeledPoint(0.0, x._2._2._2))
+    val positiveSepsis = patient.filter(x => x.expiredFlag == 1).keyBy(x => x.patientID).join(features.keyBy(x => x._1)).map(x => LabeledPoint(1.0, x._2._2._2))
+    val negativeSepsis = patient.filter(x => x.expiredFlag == 0).keyBy(x => x.patientID).join(features.keyBy(x => x._1)).map(x => LabeledPoint(0.0, x._2._2._2))
 
 
-    MLUtils.saveAsLibSVMFile(alivePatient.union(deadPatient), "data/svm")
+    MLUtils.saveAsLibSVMFile(positiveSepsis.union(negativeSepsis), "data/svm")
     val data = MLUtils.loadLibSVMFile(sc,"data/svm")
 
 
