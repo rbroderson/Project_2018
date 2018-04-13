@@ -14,7 +14,7 @@ import org.apache.spark.SparkContext._
 import org.apache.spark.mllib.classification.{LogisticRegressionWithLBFGS, LogisticRegressionModel}
 
 import org.apache.spark.mllib.clustering.{GaussianMixture, KMeans, StreamingKMeans}
-import org.apache.spark.mllib.evaluation.MulticlassMetrics
+import org.apache.spark.mllib.evaluation.{BinaryClassificationMetrics, MulticlassMetrics}
 import org.apache.spark.mllib.linalg.{DenseMatrix, Matrices, Vectors, Vector}
 import org.apache.spark.mllib.feature.StandardScaler
 import org.apache.spark.mllib.tree.RandomForest
@@ -82,11 +82,17 @@ object Main {
     val metrics = new MulticlassMetrics(predictionAndLabels)
     val precision = metrics.precision
     println("Precision = " + precision)
-
+    val recall = metrics.recall
+    println("Recall = " + recall)
+    val F1 = metrics.fMeasure
+    println("fMeasure = " + F1)
     //model.save(sc, "data/model")
     //val sameModel = LogisticRegressionModel.load(sc, "data/model")
 
+    val metricsROC = new BinaryClassificationMetrics(predictionAndLabels)
+    val auROC = metricsROC.areaUnderROC()
 
+    println("Area under ROC = " + auROC)
 
     // Split the data into training and test sets (30% held out for testing)
     val splitsRF = data.randomSplit(Array(0.7, 0.3))
@@ -113,6 +119,7 @@ object Main {
     }
     val testMSE = labelsAndPredictions.map{ case(v, p) => math.pow((v - p), 2)}.mean()
     println("Test Mean Squared Error = " + testMSE)
+
     println("Learned regression forest model:\n" + model.toString())
 
     // Save and load model
