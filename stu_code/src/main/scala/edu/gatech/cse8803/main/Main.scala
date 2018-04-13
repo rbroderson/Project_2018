@@ -8,14 +8,19 @@ package edu.gatech.cse8803.main
 import edu.gatech.cse8803.features.FeatureConstruction
 import edu.gatech.cse8803.ioutils.CSVUtils
 import edu.gatech.cse8803.model.{LabEvent, Prescription, Procedures, Patient}
+import org.apache.spark
+
 import org.apache.spark.SparkContext._
+import org.apache.spark.mllib.classification.{LogisticRegressionWithLBFGS, LogisticRegressionModel}
+
 import org.apache.spark.mllib.clustering.{GaussianMixture, KMeans, StreamingKMeans}
+import org.apache.spark.mllib.evaluation.MulticlassMetrics
 import org.apache.spark.mllib.linalg.{DenseMatrix, Matrices, Vectors, Vector}
 import org.apache.spark.mllib.feature.StandardScaler
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.SQLContext
 import org.apache.spark.{SparkConf, SparkContext}
-
+import org.apache.spark.sql.DataFrame
 import scala.io.Source
 import org.apache.spark.mllib.regression.LabeledPoint
 import org.apache.spark.mllib.util.MLUtils
@@ -30,8 +35,12 @@ object Main {
     Logger.getLogger("org").setLevel(Level.WARN)
     Logger.getLogger("akka").setLevel(Level.WARN)
 
-    val sc = createContext
+    val sc = createContext("local","local[*]")
     val sqlContext = new SQLContext(sc)
+
+
+    print(sc.version)
+
 
     val (labEvent, prescription, procedure, patient) = loadRddRawData(sqlContext)
 
@@ -51,9 +60,36 @@ object Main {
     val deadPatient = patient.filter(x => x.expiredFlag == 1).keyBy(x => x.patientID).join(features.keyBy(x => x._1)).map(x => LabeledPoint(1.0, x._2._2._2))
     val alivePatient = patient.filter(x => x.expiredFlag == 0).keyBy(x => x.patientID).join(features.keyBy(x => x._1)).map(x => LabeledPoint(0.0, x._2._2._2))
 
+
     MLUtils.saveAsLibSVMFile(alivePatient.union(deadPatient), "data/svm")
+    val data = MLUtils.loadLibSVMFile(sc,"data/svm")
+
+
+    val splits = data.randomSplit(Array(0.6, 0.4), seed = 11L)
+    val training = splits(0).cache()
+    val test = splits(1)
+
+    val model = new LogisticRegressionWithLBFGS().setNumClasses(10).run(training)
+
+
+    val predictionAndLabels = test.map { case LabeledPoint(label, features) =>
+      val prediction = model.predict(features)
+      (prediction, label)
+    }
+
+    val metrics = new MulticlassMetrics(predictionAndLabels)
+    val precision = metrics.precision
+    println("Precision = " + precision)
+
+    model.save(sc, "data/model")
+    //val sameModel = LogisticRegressionModel.load(sc, "data/model")
+
 
   }
+
+
+
+
 
   def loadRddRawData(sqlContext: SQLContext): (RDD[LabEvent], RDD[Prescription], RDD[Procedures], RDD[Patient]) = {
 
