@@ -164,7 +164,7 @@ class FeatureConstructionTest extends FlatSpec with BeforeAndAfter with Matchers
 
   "constructPatientsFeatureTuple" should "aggregate one event" in {
     val pats = sparkContext.parallelize(Seq(
-      new Patient("patient1", 47,  "M", 1, "2164-12-27 00:00:00","2188-11-22 00:00:00")));
+      new Patient("patient1", 47,  "M", 1, "2164-12-27 00:00:00","2188-11-22 00:00:00", 1)));
     val actual = FeatureConstruction.constructPatientTuple(pats).collect()
     val expected = Array(
       (("patient1", "M"), 1))
