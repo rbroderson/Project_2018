@@ -17,6 +17,8 @@ import org.apache.spark.mllib.clustering.{GaussianMixture, KMeans, StreamingKMea
 import org.apache.spark.mllib.evaluation.MulticlassMetrics
 import org.apache.spark.mllib.linalg.{DenseMatrix, Matrices, Vectors, Vector}
 import org.apache.spark.mllib.feature.StandardScaler
+import org.apache.spark.mllib.tree.RandomForest
+import org.apache.spark.mllib.tree.model.RandomForestModel
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.SQLContext
 import org.apache.spark.{SparkConf, SparkContext}
@@ -81,8 +83,42 @@ object Main {
     val precision = metrics.precision
     println("Precision = " + precision)
 
-    model.save(sc, "data/model")
+    //model.save(sc, "data/model")
     //val sameModel = LogisticRegressionModel.load(sc, "data/model")
+
+
+
+    // Split the data into training and test sets (30% held out for testing)
+    val splitsRF = data.randomSplit(Array(0.7, 0.3))
+    val (trainingData, testData) = (splitsRF(0), splitsRF(1))
+
+
+    // Train a RandomForest model.
+    //  Empty categoricalFeaturesInfo indicates all features are continuous.
+    val numClasses = 2
+    val categoricalFeaturesInfo = Map[Int, Int]()
+    val numTrees = 3 // Use more in practice.
+    val featureSubsetStrategy = "auto" // Let the algorithm choose.
+    val impurity = "variance"
+    val maxDepth = 4
+    val maxBins = 32
+
+    val modelRF = RandomForest.trainRegressor(trainingData, categoricalFeaturesInfo,
+      numTrees, featureSubsetStrategy, impurity, maxDepth, maxBins)
+
+    // Evaluate model on test instances and compute test error
+    val labelsAndPredictions = testData.map { point =>
+      val prediction = model.predict(point.features)
+      (point.label, prediction)
+    }
+    val testMSE = labelsAndPredictions.map{ case(v, p) => math.pow((v - p), 2)}.mean()
+    println("Test Mean Squared Error = " + testMSE)
+    println("Learned regression forest model:\n" + model.toString())
+
+    // Save and load model
+   // model.save(sc, "myModelPath")
+    //val sameModel = RandomForestModel.load(sc, "myModelPath")
+
 
 
   }
