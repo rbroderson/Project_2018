@@ -160,7 +160,7 @@ object Main {
     println(labEvents.count())
 
     //Add FEATUREVALUE to data file
-    val prescription: RDD[Prescription] =  sqlContext.sql("SELECT P.SUBJECT_ID, PR.DRUG, FEATUREVALUE FROM PATIENTS_WITH_FEATURES P INNER JOIN ADMISSIONS A ON P.SUBJECT_ID = A.SUBJECT_ID LEFT JOIN DIAGNOSES_ICD D ON D.HADM_ID = A.HADM_ID INNER JOIN PRESCRIPTIONS_WITH_FEATURES PR ON PR.HADM_ID = A.HADM_ID WHERE D.ICD9_CODE IN ('78552','99591','99592') ".stripMargin).map(r => Prescription(r(0).toString, r(1).toString, r(2).toString.toDouble))
+    val prescription: RDD[Prescription] =  sqlContext.sql("SELECT P.SUBJECT_ID, PR.DRUG, 0  AS FEATUREVALUE FROM PATIENTS_WITH_FEATURES P INNER JOIN ADMISSIONS A ON P.SUBJECT_ID = A.SUBJECT_ID LEFT JOIN DIAGNOSES_ICD D ON D.HADM_ID = A.HADM_ID INNER JOIN PRESCRIPTIONS_WITH_FEATURES PR ON PR.HADM_ID = A.HADM_ID WHERE D.ICD9_CODE IN ('78552','99591','99592') ".stripMargin).map(r => Prescription(r(0).toString, r(1).toString, r(2).toString.toDouble))
     //val prescription: RDD[Prescription] =  sqlContext.sql("SELECT SUBJECT_ID, DRUG, 1.0 AS THEVALUE FROM PRESCRIPTIONS  LIMIT 100".stripMargin).map(r => Prescription(r(0).toString, r(1).toString, r(2).toString.toDouble))
     prescription.cache()
     println(prescription.count())
