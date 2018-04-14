@@ -139,11 +139,11 @@ object Main {
 
     CSVUtils.loadCSVAsTable(sqlContext, "data/LABEVENTS.csv")
 
-    CSVUtils.loadCSVAsTable(sqlContext, "data/PRESCRIPTIONS.csv")
+    CSVUtils.loadCSVAsTable(sqlContext, "data/PRESCRIPTIONS_WITH_FEATURES.csv")
 
     CSVUtils.loadCSVAsTable(sqlContext, "data/PROCEDURES_ICD.csv")
 
-    CSVUtils.loadCSVAsTable(sqlContext, "data/PATIENTS.csv")
+    CSVUtils.loadCSVAsTable(sqlContext, "data/PATIENTS_WITH_FEATURES.csv")
 
     CSVUtils.loadCSVAsTable(sqlContext, "data/ADMISSIONS.csv")
 
@@ -153,25 +153,25 @@ object Main {
 
 
     //Add FEATUREVALUE to data file
-    val labEvents: RDD[LabEvent] =  sqlContext.sql("SELECT P.SUBJECT_ID, L.ITEMID, 0 AS FEATUREVALUE FROM PATIENTS P INNER JOIN ADMISSIONS A ON P.SUBJECT_ID = A.SUBJECT_ID LEFT JOIN DIAGNOSES_ICD D ON D.HADM_ID = A.HADM_ID INNER JOIN LABEVENTS L ON L.HADM_ID = A.HADM_ID WHERE D.ICD9_CODE IN ('78552','99591','99592') AND VALUENUM IS NOT NULL LIMIT 100 ".stripMargin).map(r => LabEvent(r(0).toString, r(1).toString, r(2).toString.toDouble))
+    val labEvents: RDD[LabEvent] =  sqlContext.sql("SELECT P.SUBJECT_ID, L.ITEMID, 0 AS FEATUREVALUE FROM PATIENTS_WITH_FEATURES P INNER JOIN ADMISSIONS A ON P.SUBJECT_ID = A.SUBJECT_ID LEFT JOIN DIAGNOSES_ICD D ON D.HADM_ID = A.HADM_ID INNER JOIN LABEVENTS L ON L.HADM_ID = A.HADM_ID WHERE D.ICD9_CODE IN ('78552','99591','99592') AND VALUENUM IS NOT NULL LIMIT 100 ".stripMargin).map(r => LabEvent(r(0).toString, r(1).toString, r(2).toString.toDouble))
     //val labEvents: RDD[LabEvent] =  sqlContext.sql("SELECT SUBJECT_ID, ITEMID, 0.0 as value FROM LABEVENTS LE  LIMIT 100 ".stripMargin).map(r => LabEvent(r(0).toString, r(1).toString, r(2).toString.toDouble))
 
     labEvents.cache()
     println(labEvents.count())
 
     //Add FEATUREVALUE to data file
-    val prescription: RDD[Prescription] =  sqlContext.sql("SELECT P.SUBJECT_ID, PR.DRUG, 0 AS FEATUREVALUE FROM PATIENTS P INNER JOIN ADMISSIONS A ON P.SUBJECT_ID = A.SUBJECT_ID LEFT JOIN DIAGNOSES_ICD D ON D.HADM_ID = A.HADM_ID INNER JOIN PRESCRIPTIONS PR ON PR.HADM_ID = A.HADM_ID WHERE D.ICD9_CODE IN ('78552','99591','99592') LIMIT 100 ".stripMargin).map(r => Prescription(r(0).toString, r(1).toString, r(2).toString.toDouble))
+    val prescription: RDD[Prescription] =  sqlContext.sql("SELECT P.SUBJECT_ID, PR.DRUG, FEATUREVALUE FROM PATIENTS_WITH_FEATURES P INNER JOIN ADMISSIONS A ON P.SUBJECT_ID = A.SUBJECT_ID LEFT JOIN DIAGNOSES_ICD D ON D.HADM_ID = A.HADM_ID INNER JOIN PRESCRIPTIONS_WITH_FEATURES PR ON PR.HADM_ID = A.HADM_ID WHERE D.ICD9_CODE IN ('78552','99591','99592') LIMIT 100 ".stripMargin).map(r => Prescription(r(0).toString, r(1).toString, r(2).toString.toDouble))
     //val prescription: RDD[Prescription] =  sqlContext.sql("SELECT SUBJECT_ID, DRUG, 1.0 AS THEVALUE FROM PRESCRIPTIONS  LIMIT 100".stripMargin).map(r => Prescription(r(0).toString, r(1).toString, r(2).toString.toDouble))
     prescription.cache()
     println(prescription.count())
 
     //Add FEATURECOUNT to data file
-    val procedure: RDD[Procedures] =  sqlContext.sql("SELECT P.SUBJECT_ID, PR.ICD9_CODE, 0 AS FEATURECOUNT FROM PATIENTS P INNER JOIN ADMISSIONS A ON P.SUBJECT_ID = A.SUBJECT_ID LEFT JOIN DIAGNOSES_ICD D ON D.HADM_ID = A.HADM_ID INNER JOIN PROCEDURES_ICD PR ON PR.HADM_ID = A.HADM_ID WHERE D.ICD9_CODE IN ('78552','99591','99592') LIMIT 100 ".stripMargin).map(r => Procedures(r(0).toString, r(1).toString, r(2).toString.toInt))
+    val procedure: RDD[Procedures] =  sqlContext.sql("SELECT P.SUBJECT_ID, PR.ICD9_CODE, 0 AS FEATURECOUNT FROM PATIENTS_WITH_FEATURES P INNER JOIN ADMISSIONS A ON P.SUBJECT_ID = A.SUBJECT_ID LEFT JOIN DIAGNOSES_ICD D ON D.HADM_ID = A.HADM_ID INNER JOIN PROCEDURES_ICD PR ON PR.HADM_ID = A.HADM_ID WHERE D.ICD9_CODE IN ('78552','99591','99592') LIMIT 100 ".stripMargin).map(r => Procedures(r(0).toString, r(1).toString, r(2).toString.toInt))
     //val procedure: RDD[Procedures] =  sqlContext.sql("SELECT SUBJECT_ID, ICD9_CODE, 2 as THECOUNT FROM PROCEDURES_ICD  LIMIT 100".stripMargin).map(r => Procedures(r(0).toString, r(1).toString, r(2).toString.toInt))
     procedure.cache()
     println(procedure.count())
 
-    val patient: RDD[Patient] =  sqlContext.sql("SELECT SUBJECT_ID, 35 as age, GENDER, 1 as genderIndicator, DOB, DOD, EXPIRE_FLAG FROM PATIENTS LIMIT 100".stripMargin).map(r => Patient(r(0).toString, r(1).toString.toInt, r(2).toString.toLowerCase, r(3).toString.toInt, r(4).toString, r(5).toString, r(6).toString.toInt))
+    val patient: RDD[Patient] =  sqlContext.sql("SELECT SUBJECT_ID, AGE_GROUP, GENDER, GENDER_INDICATOR, DOB, DOD, EXPIRE_FLAG FROM PATIENTS_WITH_FEATURES LIMIT 100".stripMargin).map(r => Patient(r(0).toString, r(1).toString, r(2).toString.toLowerCase, r(3).toString.toInt, r(4).toString, r(5).toString, r(6).toString.toInt))
     patient.cache()
     println(patient.count())
 

@@ -14,5 +14,5 @@ case class Prescription(patientID: String, drug: String, value: Double)
 
 case class Procedures(patientID: String, code: String, count: Int)
 
-case class Patient(patientID: String, age: Int, gender: String, genderIndicator: Int, dob: String, dod: String, expiredFlag: Int)
+case class Patient(patientID: String, ageGroup: String, gender: String, genderIndicator: Int, dob: String, dod: String, expiredFlag: Int)
 
