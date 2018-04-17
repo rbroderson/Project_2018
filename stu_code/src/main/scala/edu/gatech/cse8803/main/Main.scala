@@ -5,6 +5,9 @@
 package edu.gatech.cse8803.main
 
 
+import java.io._
+
+
 import edu.gatech.cse8803.features.FeatureConstruction
 import edu.gatech.cse8803.ioutils.CSVUtils
 import edu.gatech.cse8803.model.{LabEvent, Prescription, Procedures, Patient}
@@ -27,6 +30,9 @@ import scala.io.Source
 import org.apache.spark.mllib.regression.LabeledPoint
 import org.apache.spark.mllib.util.MLUtils
 
+import scala.reflect.io.Path
+import scala.util.Try
+
 
 object Main {
 
@@ -41,8 +47,7 @@ object Main {
     val sqlContext = new SQLContext(sc)
 
 
-    print(sc.version)
-
+    print("version " + sc.version)
 
     val (labEvent, prescription, procedure, patient) = loadRddRawData(sqlContext)
 
@@ -63,6 +68,9 @@ object Main {
     val negativeSepsis = patient.filter(x => x.expiredFlag == 0).keyBy(x => x.patientID).join(features.keyBy(x => x._1)).map(x => LabeledPoint(0.0, x._2._2._2))
 
 
+    val path: Path = Path ("data/svm")
+    Try(path.deleteRecursively())
+
     MLUtils.saveAsLibSVMFile(positiveSepsis.union(negativeSepsis), "data/svm")
     val data = MLUtils.loadLibSVMFile(sc,"data/svm")
 
@@ -74,18 +82,31 @@ object Main {
     val model = new LogisticRegressionWithLBFGS().setNumClasses(10).run(training)
 
 
+
     val predictionAndLabels = test.map { case LabeledPoint(label, features) =>
       val prediction = model.predict(features)
       (prediction, label)
     }
 
+
+    val path2: Path = Path ("results.txt")
+    Try(path2.deleteRecursively())
+
+
+    val pw = new PrintWriter(new File("results.txt" ))
+    pw.write("Regression results" + System.getProperty("file.separator"))
+
+
     val metrics = new MulticlassMetrics(predictionAndLabels)
     val precision = metrics.precision
     println("Precision = " + precision)
+    pw.write("Precision = " + precision + System.getProperty("file.separator"))
     val recall = metrics.recall
     println("Recall = " + recall)
+    pw.write("Recall = " + recall + System.getProperty("file.separator"))
     val F1 = metrics.fMeasure
     println("fMeasure = " + F1)
+    pw.write("fMeasure = " + F1 + System.getProperty("file.separator"))
     //model.save(sc, "data/model")
     //val sameModel = LogisticRegressionModel.load(sc, "data/model")
 
@@ -93,7 +114,7 @@ object Main {
     val auROC = metricsROC.areaUnderROC()
 
     println("Area under ROC = " + auROC)
-
+    pw.write("Area under ROC = " + auROC + System.getProperty("file.separator"))
     // Split the data into training and test sets (30% held out for testing)
     val splitsRF = data.randomSplit(Array(0.7, 0.3))
     val (trainingData, testData) = (splitsRF(0), splitsRF(1))
@@ -119,14 +140,13 @@ object Main {
     }
     val testMSE = labelsAndPredictions.map{ case(v, p) => math.pow((v - p), 2)}.mean()
     println("Test Mean Squared Error = " + testMSE)
-
-    println("Learned regression forest model:\n" + model.toString())
-
+    pw.write("Test Mean Squared Error = " + testMSE + System.getProperty("file.separator"))
+    //println("Learned regression forest model:\n" + model.toString())
     // Save and load model
    // model.save(sc, "myModelPath")
     //val sameModel = RandomForestModel.load(sc, "myModelPath")
 
-
+    pw.close
 
   }
 
@@ -160,7 +180,7 @@ object Main {
     println(labEvents.count())
 
     //Add FEATUREVALUE to data file
-    val prescription: RDD[Prescription] =  sqlContext.sql("SELECT P.SUBJECT_ID, PR.DRUG, 0  AS FEATUREVALUE FROM PATIENTS_WITH_FEATURES P INNER JOIN ADMISSIONS A ON P.SUBJECT_ID = A.SUBJECT_ID LEFT JOIN DIAGNOSES_ICD D ON D.HADM_ID = A.HADM_ID INNER JOIN PRESCRIPTIONS_WITH_FEATURES PR ON PR.HADM_ID = A.HADM_ID WHERE D.ICD9_CODE IN ('78552','99591','99592') ".stripMargin).map(r => Prescription(r(0).toString, r(1).toString, r(2).toString.toDouble))
+    val prescription: RDD[Prescription] =  sqlContext.sql("SELECT DISTINCT P.SUBJECT_ID, PR.DRUG, 0  AS FEATUREVALUE FROM PATIENTS_WITH_FEATURES P INNER JOIN ADMISSIONS A ON P.SUBJECT_ID = A.SUBJECT_ID LEFT JOIN DIAGNOSES_ICD D ON D.HADM_ID = A.HADM_ID INNER JOIN PRESCRIPTIONS_WITH_FEATURES PR ON PR.HADM_ID = A.HADM_ID WHERE D.ICD9_CODE IN ('78552','99591','99592') AND FEATUREVALUE IS NOT NULL ".stripMargin).map(r => Prescription(r(0).toString, r(1).toString, r(2).toString.toDouble))
     //val prescription: RDD[Prescription] =  sqlContext.sql("SELECT SUBJECT_ID, DRUG, 1.0 AS THEVALUE FROM PRESCRIPTIONS  LIMIT 100".stripMargin).map(r => Prescription(r(0).toString, r(1).toString, r(2).toString.toDouble))
     prescription.cache()
     println(prescription.count())
@@ -171,7 +191,7 @@ object Main {
     procedure.cache()
     println(procedure.count())
 
-    val patient: RDD[Patient] =  sqlContext.sql("SELECT SUBJECT_ID, AGE_GROUP, GENDER, GENDER_INDICATOR, DOB, DOD, EXPIRE_FLAG FROM PATIENTS_WITH_FEATURES ".stripMargin).map(r => Patient(r(0).toString, r(1).toString, r(2).toString.toLowerCase, r(3).toString.toInt, r(4).toString, r(5).toString, r(6).toString.toInt))
+    val patient: RDD[Patient] =  sqlContext.sql("SELECT SUBJECT_ID, AGE_GROUP, GENDER, GENDER_INDICATOR, DOB, DOD, EXPIRE_FLAG FROM PATIENTS_WITH_FEATURES   ".stripMargin).map(r => Patient(r(0).toString, r(1).toString, r(2).toString.toLowerCase, r(3).toString.toInt, r(4).toString, r(5).toString, r(6).toString.toInt))
     patient.cache()
     println(patient.count())
 
@@ -179,11 +199,11 @@ object Main {
   }
 
   def createContext(appName: String, masterUrl: String): SparkContext = {
-    val conf = new SparkConf().setAppName(appName).setMaster(masterUrl)
+    val conf = new SparkConf().setAppName(appName).setMaster(masterUrl).set("spark.executor.memory", "2G").set("spark.driver.memory", "500M").set("spark.driver.memoryFraction","0.9")
     new SparkContext(conf)
   }
 
-  def createContext(appName: String): SparkContext = createContext(appName, "local")
+    def createContext(appName: String): SparkContext = createContext(appName, "local")
 
   def createContext: SparkContext = createContext("CSE 8803 Homework Two Application", "local")
 }

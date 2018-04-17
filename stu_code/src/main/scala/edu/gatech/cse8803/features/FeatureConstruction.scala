@@ -135,10 +135,10 @@ object FeatureConstruction {
         (featureName, featureValue)
       }
 
-      println("target")
-      target.take(5).foreach(println)
-      println("features")
-      features.take(5).foreach(println)
+      //println("target")
+      //target.take(5).foreach(println)
+      //println("features")
+      //features.take(5).foreach(println)
 
     (target, features)
   }
@@ -176,7 +176,7 @@ object FeatureConstruction {
 
     }
 
-    finalSamples.take(10).foreach(println)
+    //finalSamples.take(10).foreach(println)
 
     finalSamples
 
