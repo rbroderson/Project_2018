@@ -157,7 +157,7 @@ object Main {
   def loadRddRawData(sqlContext: SQLContext): (RDD[LabEvent], RDD[Prescription], RDD[Procedures], RDD[Patient]) = {
 
 
-    CSVUtils.loadCSVAsTable(sqlContext, "data/LABEVENTS.csv")
+    CSVUtils.loadCSVAsTable(sqlContext, "data/LABEVENTS_WITH_FEATURES.csv")
 
     CSVUtils.loadCSVAsTable(sqlContext, "data/PRESCRIPTIONS_WITH_FEATURES.csv")
 
@@ -173,7 +173,7 @@ object Main {
 
 
     //Add FEATUREVALUE to data file
-    val labEvents: RDD[LabEvent] =  sqlContext.sql("SELECT P.SUBJECT_ID, L.ITEMID, 0 AS FEATUREVALUE FROM PATIENTS_WITH_FEATURES P INNER JOIN ADMISSIONS A ON P.SUBJECT_ID = A.SUBJECT_ID LEFT JOIN DIAGNOSES_ICD D ON D.HADM_ID = A.HADM_ID INNER JOIN LABEVENTS L ON L.HADM_ID = A.HADM_ID WHERE D.ICD9_CODE IN ('78552','99591','99592') AND VALUENUM IS NOT NULL ".stripMargin).map(r => LabEvent(r(0).toString, r(1).toString, r(2).toString.toDouble))
+    val labEvents: RDD[LabEvent] =  sqlContext.sql("SELECT P.SUBJECT_ID, L.ITEMID, 0 AS FEATUREVALUE FROM PATIENTS_WITH_FEATURES P INNER JOIN ADMISSIONS A ON P.SUBJECT_ID = A.SUBJECT_ID LEFT JOIN DIAGNOSES_ICD D ON D.HADM_ID = A.HADM_ID INNER JOIN LABEVENTS_WITH_FEATURES L ON L.HADM_ID = A.HADM_ID WHERE D.ICD9_CODE IN ('78552','99591','99592')  ".stripMargin).map(r => LabEvent(r(0).toString, r(1).toString, r(2).toString.toDouble))
     //val labEvents: RDD[LabEvent] =  sqlContext.sql("SELECT SUBJECT_ID, ITEMID, 0.0 as value FROM LABEVENTS LE  LIMIT 100 ".stripMargin).map(r => LabEvent(r(0).toString, r(1).toString, r(2).toString.toDouble))
 
     labEvents.cache()
@@ -199,7 +199,8 @@ object Main {
   }
 
   def createContext(appName: String, masterUrl: String): SparkContext = {
-    val conf = new SparkConf().setAppName(appName).setMaster(masterUrl).set("spark.executor.memory", "2G").set("spark.driver.memory", "500M").set("spark.driver.memoryFraction","0.9")
+    val conf = new SparkConf().setAppName(appName).setMaster(masterUrl).set("spark.executor.memory", "10G").set("spark.driver.memory", "2G").set("spark.driver.memoryFraction","0.9").set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
+      .set("spark.kryoserializer.buffer", "24")
     new SparkContext(conf)
   }
 

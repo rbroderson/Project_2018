@@ -1,0 +1,1 @@
+Regression results/Precision = 0.3333333333333333/Recall = 0.3333333333333333/fMeasure = 0.3333333333333333/Area under ROC = 0.5013368983957218/Test Mean Squared Error = 1.222222222222222/
