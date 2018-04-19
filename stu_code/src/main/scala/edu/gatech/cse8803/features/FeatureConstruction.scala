@@ -84,6 +84,18 @@ object FeatureConstruction {
 
     grpPatientsTotal
   }
+
+  def constructPatientTupleAge(patient: RDD[Patient]): RDD[FeatureTuple] = {
+    /**
+      * TODO implement your own code here and remove existing
+      * placeholder code
+      */
+    val grpPatientsAgeTotal = patient.map(x=>((x.patientID, x.gender),x.ageGroupIndicator.toDouble) )
+
+
+    grpPatientsAgeTotal
+  }
+
   /**
    * Given a feature tuples RDD, construct features in vector
    * format for each patient. feature name should be mapped

@@ -48,7 +48,7 @@ object Main {
     val sqlContext = new SQLContext(sc)
 
 
-    print("version " + sc.version)
+   // print("version " + sc.version)
 
     val (labEvent, prescription, procedure, patient) = loadRddRawData(sqlContext)
 
@@ -57,7 +57,7 @@ object Main {
 
     /** feature construction with all features */
     val featureTuples = sc.union(FeatureConstruction.constructLabEventFeatureTuple(labEvent),
-      FeatureConstruction.constructProceduresTuple(procedure), FeatureConstruction.constructPrescriptionFeatureTuple(prescription),FeatureConstruction.constructPatientTuple(patient)
+      FeatureConstruction.constructProceduresTuple(procedure), FeatureConstruction.constructPrescriptionFeatureTuple(prescription),FeatureConstruction.constructPatientTuple(patient),FeatureConstruction.constructPatientTupleAge(patient)
     )
 
     val rawFeatures = FeatureConstruction.construct(sc, featureTuples)
@@ -113,7 +113,7 @@ object Main {
 
     val metricsROC = new BinaryClassificationMetrics(predictionAndLabels)
     val auROC = metricsROC.areaUnderROC()
-
+    println("ROC = " + metricsROC.roc() + System.getProperty("file.separator"))
     println("Area under ROC = " + auROC)
     pw.write("Area under ROC = " + auROC + System.getProperty("file.separator"))
     // Split the data into training and test sets (30% held out for testing)
@@ -156,23 +156,22 @@ object Main {
   def loadRddRawData(sqlContext: SQLContext): (RDD[LabEvent], RDD[Prescription], RDD[Procedures], RDD[Patient]) = {
 
 
-    CSVUtils.loadCSVAsTable(sqlContext, "data/LABEVENTS_WITH_FEATURES.csv")
+    CSVUtils.loadCSVAsTable(sqlContext, "data/LABEVENTS_X.csv")
 
-    CSVUtils.loadCSVAsTable(sqlContext, "data/PRESCRIPTIONS_WITH_FEATURES.csv")
+    CSVUtils.loadCSVAsTable(sqlContext, "data/PRESCRIPTIONS_X.csv")
 
-    CSVUtils.loadCSVAsTable(sqlContext, "data/PROCEDURES_ICD.csv")
+    CSVUtils.loadCSVAsTable(sqlContext, "data/PROCEDURES_X.csv")
 
-    CSVUtils.loadCSVAsTable(sqlContext, "data/PATIENTS_WITH_FEATURES.csv")
+    CSVUtils.loadCSVAsTable(sqlContext, "data/PATIENTS_X.csv")
 
     CSVUtils.loadCSVAsTable(sqlContext, "data/ADMISSIONS_OBSERVERATION.csv")
 
     CSVUtils.loadCSVAsTable(sqlContext, "data/DIAGNOSES_ICD.csv")
 
 
-
-
     //Add FEATUREVALUE to data file
-    val labEvents: RDD[LabEvent] =  sqlContext.sql("SELECT P.SUBJECT_ID, L.ITEMID, 0 AS FEATUREVALUE FROM PATIENTS_WITH_FEATURES P INNER JOIN ADMISSIONS_OBSERVERATION A ON P.SUBJECT_ID = A.SUBJECT_ID LEFT JOIN DIAGNOSES_ICD D ON D.HADM_ID = A.HADM_ID INNER JOIN LABEVENTS_WITH_FEATURES L ON L.HADM_ID = A.HADM_ID WHERE D.ICD9_CODE IN ('78552','99591','99592')  ".stripMargin).map(r => LabEvent(r(0).toString, r(1).toString, r(2).toString.toDouble))
+    val labEvents: RDD[LabEvent] =  sqlContext.sql("SELECT 'SUBJECT_ID', ITEMID, FEATUREVALUE FROM LABEVENTS_X  ".stripMargin).map(r => LabEvent(r(0).toString, r(1).toString, r(2).toString.toDouble))
+    //val labEvents: RDD[LabEvent] =  sqlContext.sql("SELECT P.SUBJECT_ID, L.ITEMID, FEATUREVALUE FROM PATIENTS_WITH_FEATURES_AGE P INNER JOIN ADMISSIONS_OBSERVERATION A ON P.SUBJECT_ID = A.SUBJECT_ID LEFT JOIN DIAGNOSES_ICD D ON D.HADM_ID = A.HADM_ID INNER JOIN LABEVENTS_WITH_FEATURES L ON L.HADM_ID = A.HADM_ID WHERE D.ICD9_CODE IN ('78552','99591','99592')  ".stripMargin).map(r => LabEvent(r(0).toString, r(1).toString, r(2).toString.toDouble))
     //val labEvents: RDD[LabEvent] =  sqlContext.sql("SELECT P.SUBJECT_ID, L.ITEMID, 0 AS FEATUREVALUE FROM PATIENTS_WITH_FEATURES P INNER JOIN ADMISSIONS A ON P.SUBJECT_ID = A.SUBJECT_ID LEFT JOIN DIAGNOSES_ICD D ON D.HADM_ID = A.HADM_ID INNER JOIN LABEVENTS_WITH_FEATURES L ON L.HADM_ID = A.HADM_ID WHERE D.ICD9_CODE IN ('78552','99591','99592') AND A.ADMITTIME BETWEEN DATEADD(dd, -2000, P.INDEX_DATE) AND P.INDEX_DATE ".stripMargin).map(r => LabEvent(r(0).toString, r(1).toString, r(2).toString.toDouble))
 
     //val labEvents: RDD[LabEvent] =  sqlContext.sql("SELECT SUBJECT_ID, ITEMID, 0.0 as value FROM LABEVENTS LE  LIMIT 100 ".stripMargin).map(r => LabEvent(r(0).toString, r(1).toString, r(2).toString.toDouble))
@@ -180,21 +179,33 @@ object Main {
     labEvents.cache()
     println(labEvents.count())
 
+    val patient: RDD[Patient] =  sqlContext.sql("SELECT 'SUBJECT_ID', GENDER, GENDER_INDICATOR, EXPIRE_FLAG, AGE_GROUP_INDICATOR FROM PATIENTS_X ".stripMargin).map(r => Patient(r(0).toString, r(1).toString, r(2).toString.toInt, r(3).toString.toInt, r(4).toString.toInt))
+    patient.cache()
+    println(patient.count())
+
+
     //Add FEATUREVALUE to data file
-    val prescription: RDD[Prescription] =  sqlContext.sql("SELECT DISTINCT P.SUBJECT_ID, PR.DRUG, 0  AS FEATUREVALUE FROM PATIENTS_WITH_FEATURES P INNER JOIN ADMISSIONS_OBSERVERATION A ON P.SUBJECT_ID = A.SUBJECT_ID LEFT JOIN DIAGNOSES_ICD D ON D.HADM_ID = A.HADM_ID INNER JOIN PRESCRIPTIONS_WITH_FEATURES PR ON PR.HADM_ID = A.HADM_ID WHERE D.ICD9_CODE IN ('78552','99591','99592') AND FEATUREVALUE IS NOT NULL ".stripMargin).map(r => Prescription(r(0).toString, r(1).toString, r(2).toString.toDouble))
+    val prescription: RDD[Prescription] =  sqlContext.sql("SELECT 'SUBJECT_ID', DRUG, FEATUREVALUE FROM PRESCRIPTIONS_X ".stripMargin).map(r => Prescription(r(0).toString, r(1).toString, r(2).toString.toDouble))
+
+    //val prescription: RDD[Prescription] =  sqlContext.sql("SELECT DISTINCT P.SUBJECT_ID, PR.DRUG, FEATUREVALUE FROM PATIENTS_WITH_FEATURES_AGE P INNER JOIN ADMISSIONS_OBSERVERATION A ON P.SUBJECT_ID = A.SUBJECT_ID LEFT JOIN DIAGNOSES_ICD D ON D.HADM_ID = A.HADM_ID INNER JOIN PRESCRIPTIONS_WITH_FEATURES PR ON PR.HADM_ID = A.HADM_ID WHERE D.ICD9_CODE IN ('78552','99591','99592') AND FEATUREVALUE IS NOT NULL ".stripMargin).map(r => Prescription(r(0).toString, r(1).toString, r(2).toString.toDouble))
     //val prescription: RDD[Prescription] =  sqlContext.sql("SELECT SUBJECT_ID, DRUG, 1.0 AS THEVALUE FROM PRESCRIPTIONS  LIMIT 100".stripMargin).map(r => Prescription(r(0).toString, r(1).toString, r(2).toString.toDouble))
     prescription.cache()
     println(prescription.count())
 
+
     //Add FEATURECOUNT to data file
-    val procedure: RDD[Procedures] =  sqlContext.sql("SELECT PR.SUBJECT_ID, PR.ICD9_CODE, COUNT(1) AS FEATURECOUNT FROM PATIENTS_WITH_FEATURES P INNER JOIN ADMISSIONS_OBSERVERATION A ON P.SUBJECT_ID = A.SUBJECT_ID LEFT JOIN DIAGNOSES_ICD D ON D.HADM_ID = A.HADM_ID INNER JOIN PROCEDURES_ICD PR ON PR.HADM_ID = A.HADM_ID WHERE D.ICD9_CODE IN ('78552','99591','99592') GROUP BY PR.SUBJECT_ID, PR.ICD9_CODE ".stripMargin).map(r => Procedures(r(0).toString, r(1).toString, r(2).toString.toInt))
-    //val procedure: RDD[Procedures] =  sqlContext.sql("SELECT SUBJECT_ID, ICD9_CODE, 2 as THECOUNT FROM PROCEDURES_ICD  LIMIT 100".stripMargin).map(r => Procedures(r(0).toString, r(1).toString, r(2).toString.toInt))
+    val procedure: RDD[Procedures] =  sqlContext.sql("SELECT 'SUBJECT_ID',ICD9_CODE,FEATURECOUNT FROM PROCEDURES_X  ".stripMargin).map(r => Procedures(r(0).toString, r(1).toString, r(2).toString.toInt))
+
+    //val procedure: RDD[Procedures] =  sqlContext.sql("SELECT 'PR.SUBJECT_ID', PR.ICD9_CODE, FEATURECOUNT FROM PATIENTS_WITH_FEATURES_AGE P INNER JOIN ADMISSIONS_OBSERVERATION A ON P.SUBJECT_ID = A.SUBJECT_ID LEFT JOIN DIAGNOSES_ICD D ON D.HADM_ID = A.HADM_ID INNER JOIN PROCEDURES_WITH_FEATURES PR ON PR.HADM_ID = A.HADM_ID WHERE D.ICD9_CODE IN ('78552','99591','99592') GROUP BY PR.SUBJECT_ID, PR.ICD9_CODE, PR.HADM_ID ".stripMargin).map(r => Procedures(r(0).toString, r(1).toString, r(2).toString.toInt))
+      //val procedure: RDD[Procedures] =  sqlContext.sql("SELECT SUBJECT_ID, ICD9_CODE, 2 as THECOUNT FROM PROCEDURES_ICD  LIMIT 100".stripMargin).map(r => Procedures(r(0).toString, r(1).toString, r(2).toString.toInt))
     procedure.cache()
     println(procedure.count())
 
-    val patient: RDD[Patient] =  sqlContext.sql("SELECT SUBJECT_ID, AGE_GROUP, GENDER, GENDER_INDICATOR, DOB, DOD, EXPIRE_FLAG FROM PATIENTS_WITH_FEATURES   ".stripMargin).map(r => Patient(r(0).toString, r(1).toString, r(2).toString.toLowerCase, r(3).toString.toInt, r(4).toString, r(5).toString, r(6).toString.toInt))
-    patient.cache()
-    println(patient.count())
+
+
+
+
+
 
     (labEvents, prescription, procedure, patient)
   }
