@@ -118,7 +118,7 @@ END
 DELETE FROM PATIENTS WHERE AGE_GROUP = 'NEONATE' OR AGE_GROUP IS NULL
 SELECT ROW_ID,SUBJECT_ID,GENDER,DOB,DOD,DOD_HOSP,DOD_SSN,EXPIRE_FLAG,FIRST_ADMISSIONTIME,AGE_GROUP,INDEX_DATE,TRIM(GENDER_INDICATOR) FROM PATIENTS
 
---OUTPUT  Run this query and save results to stu_code/data/PATIENTS_X.csv
+--OUTPUT  Right click query results and save as to stu_code/data/PATIENTS_X.csv OR Run this query and save results
 
 DECLARE @OutputFile NVARCHAR(100) ,    @FilePath NVARCHAR(100) ,    @bcpCommand NVARCHAR(1000)
  
@@ -157,7 +157,7 @@ AND CAST(M.MAXIMUM AS DECIMAL(38,7)) > 0
 --REMOVE RECORDS WITHOUT VALUES
 DELETE FROM PRESCRIPTIONS WHERE FEATUREVALUE IS NULL
 
---OUTPUT  Run this query and save results to stu_code/data/PRESCRIPTIONS_X.csv
+--OUTPUT  Right click query results and save as to stu_code/data/PRESCRIPTIONS_X.csv OR Run this query and save results
 
 DECLARE @OutputFile NVARCHAR(100) ,    @FilePath NVARCHAR(100) ,    @bcpCommand NVARCHAR(1000)
  
@@ -180,7 +180,7 @@ UPDATE PRESCRIPTIONS SET FEATUREVALUE = 0.2027 WHERE ROW_ID = 708449
 
 
 
---OUTPUT  Run this query and save results to stu_code/data/PROCEDURES_X.csv
+--OUTPUT  Right click query results and save as to stu_code/data/PROCEDURES_X.csv OR Run this query and save results
 
 DECLARE @OutputFile NVARCHAR(100) ,    @FilePath NVARCHAR(100) ,    @bcpCommand NVARCHAR(1000)
  
@@ -212,7 +212,7 @@ AND ISNUMERIC(L.VALUENUM)=1 AND L.VALUENUM IS NOT NULL
 --OUTPUT
 
 
---OUTPUT  Run this query and save results to stu_code/data/LABEVENTS_X.csv
+--OUTPUT  Right click query results and save as to stu_code/data/LABEVENTS_X.csv OR Run this query and save results
 
 DECLARE @OutputFile NVARCHAR(100) ,    @FilePath NVARCHAR(100) ,    @bcpCommand NVARCHAR(1000)
  
